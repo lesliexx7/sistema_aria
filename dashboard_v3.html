@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard V3 - Sistema de Monitoreo Metro CDMX (PostgreSQL Eventos)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f1419;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #009999 0%, #006666 100%);
+            padding: 20px 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 26px;
+            font-weight: 600;
+        }
+        
+        .header .timestamp {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .main-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 320px;
+            height: calc(100vh - 80px);
+            gap: 0;
+        }
+        
+        .left-panel {
+            background: #1a1f2e;
+            padding: 25px;
+            overflow-y: auto;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .right-panel {
+            background: #1a1f2e;
+            padding: 25px;
+            overflow-y: auto;
+            border-left: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #00d4ff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-box {
+            background: rgba(255,255,255,0.05);
+            padding: 18px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+        
+        .stat-box .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            opacity: 0.7;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-box .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .stat-box.total .value { color: #44aaff; }
+        .stat-box.asignado .value { color: #ffbb33; }
+        .stat-box.finalizado .value { color: #00ff88; }
+        .stat-box.activo .value { color: #ff4466; }
+        
+        .alerts-container {
+            max-height: calc(100vh - 450px);
+            overflow-y: auto;
+        }
+        
+        .alert-card {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .alert-card:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateX(5px);
+        }
+        
+        .alert-card.alta { border-left-color: #ff4466; }
+        .alert-card.media { border-left-color: #ffbb33; }
+        
+        .alert-card .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .alert-card .sensor-id {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .alert-card .time {
+            font-size: 11px;
+            opacity: 0.6;
+        }
+        
+        .alert-card .description {
+            font-size: 12px;
+            opacity: 0.8;
+            line-height: 1.4;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #0a0e1a;
+        }
+        
+        .sensor-details {
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .sensor-details h3 {
+            color: #00d4ff;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-item .label {
+            opacity: 0.7;
+            font-size: 13px;
+        }
+        
+        .detail-item .value {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 14px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        
+        .status-badge.operativo { background: #00ff88; color: #000; }
+        .status-badge.falla { background: #ff4466; color: #fff; }
+        .status-badge.advertencia { background: #ffbb33; color: #000; }
+        .status-badge.mantenimiento { background: #44aaff; color: #fff; }
+        
+        .progress-container {
+            flex: 1;
+            margin-left: 15px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s;
+            border-radius: 4px;
+        }
+        
+        .progress-fill.high { background: #00ff88; }
+        .progress-fill.medium { background: #ffbb33; }
+        .progress-fill.low { background: #ff4466; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            opacity: 0.5;
+            font-size: 14px;
+        }
+        
+        .line-buttons-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 25px;
+        }
+        
+        .line-btn {
+            padding: 10px 5px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 13px;
+            color: white;
+            transition: all 0.2s;
+            opacity: 0.6;
+            border: 2px solid transparent;
+        }
+        
+        .line-btn:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+        }
+        
+        .line-btn.active {
+            opacity: 1;
+            border: 2px solid rgba(255,255,255,0.5);
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        
+        .line-btn.all {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            grid-column: span 2;
+        }
+        
+        /* Estilos para botones de filtro de estado */
+        .status-filter-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .status-filter-btn {
+            padding: 10px 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            color: white;
+            transition: all 0.2s;
+            opacity: 0.6;
+            border: 2px solid transparent;
+            text-align: center;
+        }
+        
+        .status-filter-btn:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+        }
+        
+        .status-filter-btn.active {
+            opacity: 1;
+            border: 2px solid rgba(255,255,255,0.5);
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        
+        .status-filter-btn.activo {
+            background: linear-gradient(135deg, #ff4466 0%, #cc0033 100%);
+        }
+        
+        .status-filter-btn.asignado {
+            background: linear-gradient(135deg, #ffbb33 0%, #ff9900 100%);
+        }
+        
+        .status-filter-btn.finalizado {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        /* Estilos para el modal de alarmas */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: #1a1f2e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            max-width: 500px;
+            width: 90%;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        
+        .modal-header h2 {
+            color: #00d4ff;
+            font-size: 22px;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 28px;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .close-btn:hover {
+            opacity: 1;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,212,255,0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .alarm-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #ff4466 0%, #cc0033 100%);
+            border: none;
+            border-radius: 50%;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(255,68,102,0.4);
+            transition: all 0.3s;
+            z-index: 1500;
+        }
+        
+        .alarm-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 30px rgba(255,68,102,0.6);
+        }
+        
+        .notification {
+            position: fixed;
+            top: 100px;
+            right: 30px;
+            background: #1a1f2e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            border-left: 4px solid;
+            z-index: 3000;
+            min-width: 300px;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .notification.success {
+            border-left-color: #00ff88;
+        }
+        
+        .notification.error {
+            border-left-color: #ff4466;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚇 Sistema de Monitoreo - Metro CDMX <span style="font-size: 14px; opacity: 0.7;">(V3 - Eventos PostgreSQL)</span></h1>
+        <div style="display: flex; gap: 20px; align-items: center;">
+            <div id="apiStatus" style="font-size: 12px; padding: 5px 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
+                API: Conectando...
+            </div>
+            <div class="timestamp" id="timestamp">Cargando...</div>
+        </div>
+    </div>
+    
+    <!-- Botón flotante para crear alarmas -->
+    <button class="alarm-btn" onclick="openAlarmModal()" title="Crear Alarma">
+        🚨
+    </button>
+    
+    <!-- Modal para crear alarmas -->
+    <div id="alarmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🚨 Crear Alarma</h2>
+                <button class="close-btn" onclick="closeAlarmModal()">&times;</button>
+            </div>
+            <form id="alarmForm" onsubmit="sendAlarm(event)">
+                <div class="form-group">
+                    <label>Sensor ID</label>
+                    <select id="sensorId" required>
+                        <option value="">Cargando sensores...</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-primary" id="sendBtn">
+                    Enviar Alarma
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <!-- Panel Izquierdo -->
+        <div class="left-panel">
+            <div class="panel-title">🚇 Seleccionar Línea</div>
+            <div class="line-buttons-container" id="lineButtons"></div>
+            
+            <div class="panel-title">📊 Estado de Alertas</div>
+            <div class="stats-container" id="statsContainer">
+                <div class="stat-box total">
+                    <div class="label">Total Generadas</div>
+                    <div class="value" id="stat-generadas">--</div>
+                </div>
+                <div class="stat-box asignado">
+                    <div class="label">Atendidas</div>
+                    <div class="value" id="stat-atendidas">--</div>
+                </div>
+                <div class="stat-box finalizado">
+                    <div class="label">Finalizadas</div>
+                    <div class="value" id="stat-finalizadas">--</div>
+                </div>
+                <div class="stat-box activo">
+                    <div class="label">Pendientes</div>
+                    <div class="value" id="stat-pendientes">--</div>
+                </div>
+            </div>
+            
+            <div class="stat-box" style="background: rgba(255,187,51,0.1); border: 1px solid rgba(255,187,51,0.3); margin-bottom: 20px;">
+                <div class="label">En Proceso</div>
+                <div class="value" id="stat-en-proceso" style="color: #ffbb33;">--</div>
+            </div>
+            
+            <div class="panel-title">🚨 Alertas</div>
+            
+            <!-- Botones de filtro por estado -->
+            <div class="status-filter-container">
+                <button class="status-filter-btn activo active" onclick="filterByStatus('activo', event)">
+                    🔴 Activas
+                </button>
+                <button class="status-filter-btn asignado" onclick="filterByStatus('asignado', event)">
+                    🟡 Asignadas
+                </button>
+                <button class="status-filter-btn finalizado" onclick="filterByStatus('finalizado', event)">
+                    🟢 Finalizadas
+                </button>
+            </div>
+            
+            <div class="alerts-container" id="alertsContainer">
+                <div class="empty-state">Cargando alertas...</div>
+            </div>
+            
+            <div class="panel-title" style="margin-top: 20px;">📤 Alarmas Enviadas</div>
+            <div class="alerts-container" id="sentAlarmsContainer" style="max-height: 200px;">
+                <div class="empty-state">No hay alarmas enviadas</div>
+            </div>
+        </div>
+        
+        <!-- Mapa Central -->
+        <div id="map"></div>
+        
+        <!-- Panel Derecho -->
+        <div class="right-panel">
+            <div class="panel-title">📍 Detalles del Sensor</div>
+            <div id="sensorDetailsContainer">
+                <div class="empty-state">
+                    Selecciona un sensor en el mapa<br>o en la lista de alertas
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let infoWindow;
+        let sensoresData;
+        let markers = {};
+        let polylines = {};
+        let stationMarkers = [];
+        let currentLine = 'all';
+        let showStations = true;
+        let currentStatus = 'activo'; // Estado actual del filtro
+
+        const lineColors = {
+            '1': '#F54EA2', '01': '#F54EA2',
+            '2': '#0065B3', '02': '#0065B3',
+            '3': '#AF9800', '03': '#AF9800',
+            '4': '#71C5E8', '04': '#71C5E8',
+            '5': '#FFDD00', '05': '#FFDD00',
+            '6': '#E32119', '06': '#E32119',
+            '7': '#FF6B00', '07': '#FF6B00',
+            '8': '#00A650', '08': '#00A650',
+            '9': '#5E361E', '09': '#5E361E',
+            'A': '#B091D1',
+            'B': '#00A99D',
+            '12': '#CFAA52'
+        };
+
+        async function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 19.4326, lng: -99.1332 },
+                zoom: 12,
+                mapTypeId: 'roadmap',
+                styles: [
+                    // Mapa en modo claro
+                    { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+                    { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+                    { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+                    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+                    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#d9d9d9' }] },
+                    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+                    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#b3b3b3' }] },
+                    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e6f7' }] },
+                    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#5a8db8' }] },
+                    { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
+                    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#d4e9d4' }] },
+                    { featureType: 'transit.station.rail', elementType: 'labels', stylers: [{ visibility: 'off' }] }
+                ]
+            });
+
+            infoWindow = new google.maps.InfoWindow();
+            await loadData();
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch('sensores_estado.json');
+                sensoresData = await response.json();
+                
+                createLineButtons();
+                updateTimestamp(sensoresData.timestamp);
+                await drawMap();
+                
+                // Cargar eventos desde PostgreSQL
+                await loadEventosFromDB();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('alertsContainer').innerHTML = 
+                    '<div class="empty-state">Error al cargar datos</div>';
+            }
+        }
+        
+        async function loadEventosFromDB() {
+            try {
+                // Cargar estadísticas
+                const statsResponse = await fetch(`${API_URL}/eventos/estadisticas`);
+                const statsData = await statsResponse.json();
+                
+                if (statsData.success) {
+                    updateStats(statsData.estadisticas);
+                    console.log('✓ Estadísticas cargadas:', statsData.estadisticas);
+                }
+                
+                // Cargar eventos según el estado actual
+                const eventosResponse = await fetch(`${API_URL}/eventos?estado=${currentStatus}&limit=50`);
+                const eventosData = await eventosResponse.json();
+                
+                if (eventosData.success && eventosData.eventos) {
+                    updateAlerts(eventosData.eventos, currentStatus);
+                    console.log(`✓ ${eventosData.eventos.length} eventos ${currentStatus} cargados`);
+                } else {
+                    updateAlerts([], currentStatus);
+                }
+            } catch (error) {
+                console.error('Error cargando eventos:', error);
+                updateStats({ generadas: 0, atendidas: 0, finalizadas: 0, pendientes: 0 });
+                updateAlerts([], currentStatus);
+            }
+        }
+        
+        function filterByStatus(status, event) {
+            currentStatus = status;
+            
+            // Actualizar botones activos
+            document.querySelectorAll('.status-filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            
+            // Recargar eventos con el nuevo estado
+            loadEventosFromDB();
+        }
+        
+        function createLineButtons() {
+            const container = document.getElementById('lineButtons');
+            const lines = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', '12'];
+            
+            let html = '<button class="line-btn all active" onclick="filterByLine(\'all\', event)">Todas</button>';
+            
+            lines.forEach(line => {
+                html += `<button class="line-btn" 
+                                style="background: ${lineColors[line]}" 
+                                onclick="filterByLine('${line}', event)">
+                            ${line}
+                        </button>`;
+            });
+            
+            html += `<button class="line-btn toggle-stations" 
+                            style="background: #2d3748; grid-column: span 2;" 
+                            onclick="toggleStations()">
+                        🚉 Ocultar Estaciones
+                    </button>`;
+            
+            container.innerHTML = html;
+        }
+        
+        function toggleStations() {
+            showStations = !showStations;
+            const btn = document.querySelector('.toggle-stations');
+            
+            stationMarkers.forEach(item => {
+                if (currentLine === 'all' || item.linea === currentLine || item.linea === '0' + currentLine) {
+                    item.marker.setMap(showStations ? map : null);
+                }
+            });
+            
+            btn.textContent = showStations ? '🚉 Ocultar Estaciones' : '🚉 Mostrar Estaciones';
+        }
+        
+        function filterByLine(lineNum, event) {
+            currentLine = lineNum;
+            
+            // Actualizar botones activos
+            document.querySelectorAll('.line-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            
+            // Filtrar sensores
+            Object.keys(markers).forEach(sensorId => {
+                const sensor = sensoresData.sensores.find(s => s.sensor_id === sensorId);
+                if (lineNum === 'all' || sensor.linea === lineNum) {
+                    markers[sensorId].setMap(map);
+                } else {
+                    markers[sensorId].setMap(null);
+                }
+            });
+            
+            // Filtrar estaciones
+            stationMarkers.forEach(item => {
+                if (lineNum === 'all' || item.linea === lineNum || item.linea === '0' + lineNum) {
+                    item.marker.setMap(showStations ? map : null);
+                } else {
+                    item.marker.setMap(null);
+                }
+            });
+            
+            // Filtrar líneas
+            Object.keys(polylines).forEach(line => {
+                if (lineNum === 'all') {
+                    polylines[line].setMap(map);
+                    polylines[line].setOptions({ strokeWeight: 5, strokeOpacity: 0.7 });
+                } else if (line === lineNum) {
+                    polylines[line].setMap(map);
+                    polylines[line].setOptions({ strokeWeight: 8, strokeOpacity: 1.0 });
+                } else {
+                    polylines[line].setMap(null);
+                }
+            });
+            
+            // Filtrar alertas
+            const filteredAlerts = lineNum === 'all' 
+                ? sensoresData.alertas_activas 
+                : sensoresData.alertas_activas.filter(a => a.linea === lineNum);
+            updateAlerts(filteredAlerts);
+            
+            // Actualizar estadísticas
+            const filteredSensors = lineNum === 'all'
+                ? sensoresData.sensores
+                : sensoresData.sensores.filter(s => s.linea === lineNum);
+            
+            const stats = {
+                operativos: filteredSensors.filter(s => s.estado === 'operativo').length,
+                fallas: filteredSensors.filter(s => s.estado === 'falla').length,
+                advertencias: filteredSensors.filter(s => s.estado === 'advertencia').length,
+                mantenimiento: filteredSensors.filter(s => s.estado === 'mantenimiento').length
+            };
+            updateStats(stats);
+            
+            // Ajustar zoom del mapa
+            if (lineNum !== 'all' && polylines[lineNum]) {
+                const bounds = new google.maps.LatLngBounds();
+                polylines[lineNum].getPath().forEach(point => {
+                    bounds.extend(point);
+                });
+                map.fitBounds(bounds);
+            } else {
+                map.setCenter({ lat: 19.4326, lng: -99.1332 });
+                map.setZoom(12);
+            }
+        }
+
+        function updateTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            document.getElementById('timestamp').textContent = 
+                `Actualizado: ${date.toLocaleTimeString('es-MX')}`;
+        }
+
+        function updateStats(estadisticas) {
+            document.getElementById('stat-generadas').textContent = estadisticas.generadas || 0;
+            document.getElementById('stat-atendidas').textContent = estadisticas.atendidas || 0;
+            document.getElementById('stat-finalizadas').textContent = estadisticas.finalizadas || 0;
+            document.getElementById('stat-pendientes').textContent = estadisticas.pendientes || 0;
+            document.getElementById('stat-en-proceso').textContent = estadisticas.en_proceso || 0;
+            
+            console.log('📊 Estadísticas actualizadas:', estadisticas);
+        }
+
+        function updateAlerts(eventos, status = 'activo') {
+            const container = document.getElementById('alertsContainer');
+            
+            const statusMessages = {
+                'activo': 'No hay eventos activos',
+                'asignado': 'No hay eventos asignados',
+                'finalizado': 'No hay eventos finalizados'
+            };
+            
+            if (eventos.length === 0) {
+                container.innerHTML = `<div class="empty-state">${statusMessages[status] || 'No hay eventos'}</div>`;
+                return;
+            }
+            
+            container.innerHTML = eventos.map(evento => {
+                const severidad = evento.nivel_severidad || 1;
+                const prioridad = severidad >= 3 ? 'alta' : 'media';
+                const minutos = Math.floor(evento.minutos_transcurridos || 0);
+                const timestamp = new Date(evento.timestamp).toLocaleString('es-MX');
+                
+                // Emoji según estado
+                const estadoEmoji = {
+                    'activo': '🔴',
+                    'asignado': '🟡',
+                    'finalizado': '🟢'
+                };
+                
+                // Tiempo de atención si está finalizado
+                const tiempoAtencion = evento.tiempo_atencion_minutos 
+                    ? `<br>⏱️ Atendido en ${evento.tiempo_atencion_minutos} min` 
+                    : '';
+                
+                return `
+                    <div class="alert-card ${prioridad}" onclick="selectSensorFromEvento('${evento.sensor_id}', ${evento.id})">
+                        <div class="header-row">
+                            <span class="sensor-id">${evento.sensor_id}</span>
+                            <span class="time">${minutos} min</span>
+                        </div>
+                        <div class="description">
+                            📍 Línea ${evento.linea || '?'}<br>
+                            ${estadoEmoji[evento.estado] || '🚨'} Evento #${evento.id} - ${evento.estado.toUpperCase()}${tiempoAtencion}<br>
+                            <span style="font-size: 10px; opacity: 0.7;">${timestamp}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function selectSensorFromEvento(sensorId, eventoId) {
+            console.log(`Evento #${eventoId} - Sensor: ${sensorId}`);
+            selectSensor(sensorId);
+        }
+
+        async function loadShapefile(shpPath, dbfPath) {
+            const source = await shapefile.open(shpPath, dbfPath);
+            const features = [];
+            let result;
+            while (!(result = await source.read()).done) {
+                features.push(result.value);
+            }
+            return features;
+        }
+
+        async function drawMap() {
+            // Cargar y dibujar líneas
+            const lineasResponse = await fetch('lineas_metro.geojson');
+            const lineasGeoJSON = await lineasResponse.json();
+            
+            lineasGeoJSON.features.forEach(feature => {
+                const lineNumber = feature.properties.LINEA.trim();
+                const color = lineColors[lineNumber] || '#888888';
+                const coordinates = feature.geometry.coordinates.map(coord => ({
+                    lat: coord[1], lng: coord[0]
+                }));
+                
+                const polyline = new google.maps.Polyline({
+                    path: coordinates,
+                    strokeColor: color,
+                    strokeOpacity: 0.7,
+                    strokeWeight: 5,
+                    map: map
+                });
+                
+                polylines[lineNumber] = polyline;
+            });
+
+            // Cargar y dibujar estaciones
+            const estaciones = await loadShapefile(
+                'stcmetro_shp/STC_Metro_estaciones_utm14n.shp',
+                'stcmetro_shp/STC_Metro_estaciones_utm14n.dbf'
+            );
+
+            estaciones.forEach(feature => {
+                const props = feature.properties;
+                const nombre = props.NOMBRE ? props.NOMBRE.trim() : '';
+                const linea = props.LINEA ? props.LINEA.trim() : '';
+                const tipo = props.TIPO || '';
+                const alcaldia = props.ALCALDIAS || '';
+                const cve_est = props.CVE_EST || '';
+                const coords = feature.geometry.coordinates;
+                const color = lineColors[linea] || '#888888';
+                
+                const marker = new google.maps.Marker({
+                    position: { lat: coords[1], lng: coords[0] },
+                    map: map,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 6,
+                        fillColor: color,
+                        fillOpacity: 0.9,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2
+                    },
+                    title: nombre,
+                    zIndex: 200
+                });
+
+                stationMarkers.push({ marker, linea });
+
+                marker.addListener('click', () => {
+                    infoWindow.setContent(`
+                        <div style="padding: 15px; min-width: 220px; font-family: 'Segoe UI', sans-serif;">
+                            <h3 style="margin: 0 0 12px 0; color: ${color}; font-size: 18px; font-weight: 600; border-bottom: 2px solid ${color}; padding-bottom: 8px;">
+                                🚉 ${nombre}
+                            </h3>
+                            <div style="font-size: 14px; line-height: 1.8;">
+                                <p style="margin: 8px 0;">
+                                    <strong style="color: #555;">Línea:</strong> 
+                                    <span style="color: ${color}; font-weight: 600;">${linea}</span>
+                                </p>
+                                <p style="margin: 8px 0;">
+                                    <strong style="color: #555;">Tipo:</strong> 
+                                    <span style="color: #333;">${tipo}</span>
+                                </p>
+                                ${alcaldia ? `<p style="margin: 8px 0;">
+                                    <strong style="color: #555;">Alcaldía:</strong> 
+                                    <span style="color: #333;">${alcaldia}</span>
+                                </p>` : ''}
+                                ${cve_est ? `<p style="margin: 8px 0; padding-top: 8px; border-top: 1px solid #eee;">
+                                    <span style="font-size: 11px; color: #999;">Clave: ${cve_est}</span>
+                                </p>` : ''}
+                            </div>
+                        </div>
+                    `);
+                    infoWindow.open(map, marker);
+                });
+            });
+
+            // Dibujar sensores
+            sensoresData.sensores.forEach(sensor => {
+                let markerColor, scale;
+                
+                switch(sensor.estado) {
+                    case 'operativo':
+                        markerColor = '#00ff88';
+                        scale = 4;
+                        break;
+                    case 'falla':
+                        markerColor = '#ff4466';
+                        scale = 7;
+                        break;
+                    case 'advertencia':
+                        markerColor = '#ffbb33';
+                        scale = 6;
+                        break;
+                    case 'mantenimiento':
+                        markerColor = '#44aaff';
+                        scale = 5;
+                        break;
+                    default:
+                        markerColor = '#888888';
+                        scale = 4;
+                }
+                
+                const marker = new google.maps.Marker({
+                    position: { lat: sensor.lat, lng: sensor.lon },
+                    map: map,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: scale,
+                        fillColor: markerColor,
+                        fillOpacity: 0.9,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2
+                    },
+                    title: sensor.sensor_id
+                });
+
+                marker.addListener('click', () => selectSensor(sensor.sensor_id));
+                markers[sensor.sensor_id] = marker;
+            });
+        }
+
+        function selectSensor(sensorId) {
+            const sensor = sensoresData.sensores.find(s => s.sensor_id === sensorId);
+            if (!sensor) return;
+            
+            map.panTo({ lat: sensor.lat, lng: sensor.lon });
+            map.setZoom(15);
+            
+            const batteryClass = sensor.nivel_bateria > 50 ? 'high' : 
+                                 sensor.nivel_bateria > 20 ? 'medium' : 'low';
+            const signalClass = sensor.calidad_señal > 70 ? 'high' : 
+                               sensor.calidad_señal > 40 ? 'medium' : 'low';
+            
+            document.getElementById('sensorDetailsContainer').innerHTML = `
+                <div class="sensor-details">
+                    <h3>${sensor.sensor_id}</h3>
+                    
+                    <div class="detail-item">
+                        <span class="label">Estado</span>
+                        <span class="status-badge ${sensor.estado}">${sensor.estado}</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="label">Línea</span>
+                        <span class="value" style="color: ${lineColors[sensor.linea]}">
+                            Línea ${sensor.linea}
+                        </span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="label">Posición</span>
+                        <span class="value">${sensor.posicion_en_linea.toFixed(1)}%</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="label">Batería</span>
+                        <div class="progress-container">
+                            <span class="value">${sensor.nivel_bateria}%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${batteryClass}" 
+                                     style="width: ${sensor.nivel_bateria}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="label">Señal</span>
+                        <div class="progress-container">
+                            <span class="value">${sensor.calidad_señal}%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${signalClass}" 
+                                     style="width: ${sensor.calidad_señal}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="label">Temperatura</span>
+                        <span class="value">${sensor.temperatura}°C</span>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="label">Tiempo Operación</span>
+                        <span class="value">${sensor.tiempo_operacion} hrs</span>
+                    </div>
+                    
+                    ${sensor.tipo_problema ? `
+                        <div class="detail-item">
+                            <span class="label">Problema</span>
+                            <span class="value" style="color: #ff4466">
+                                ${sensor.tipo_problema}
+                            </span>
+                        </div>
+                    ` : ''}
+                    
+                    <button onclick="sendQuickAlarm('${sensor.sensor_id}')" 
+                            style="width: 100%; padding: 12px; margin-top: 15px; background: linear-gradient(135deg, #ff4466 0%, #cc0033 100%); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; font-size: 14px;">
+                        🚨 Enviar Alarma Rápida
+                    </button>
+                </div>
+            `;
+        }
+
+        // ============================================
+        // SISTEMA DE ALARMAS - CONFIGURACIÓN
+        // ============================================
+        
+        const WEBHOOK_URL = 'https://carloshn.app.n8n.cloud/webhook-test/EndPointAimatics';
+        const API_URL = 'http://localhost:5000/api';
+        let sentAlarms = []; // Historial de alarmas enviadas
+        let allSensoresFromDB = []; // Sensores desde PostgreSQL
+        
+        window.initMap = initMap;
+        
+        // Cargar sensores desde PostgreSQL al iniciar
+        loadSensoresFromDB();
+        
+        // Auto-refresh cada 30 segundos
+        setInterval(() => { loadData(); loadEventosFromDB(); }, 30000);
+        
+        function updateSentAlarmsDisplay() {
+            const container = document.getElementById('sentAlarmsContainer');
+            
+            if (sentAlarms.length === 0) {
+                container.innerHTML = '<div class="empty-state">No hay alarmas enviadas</div>';
+                return;
+            }
+            
+            container.innerHTML = sentAlarms.slice(-5).reverse().map(alarm => `
+                <div class="alert-card ${alarm.tipo === 'falla' || alarm.tipo === 'emergencia' ? 'alta' : 'media'}" 
+                     style="cursor: default; margin-bottom: 8px;">
+                    <div class="header-row">
+                        <span class="sensor-id" style="font-size: 12px;">${alarm.id}</span>
+                        <span class="time" style="font-size: 10px;">
+                            ${new Date(alarm.timestamp).toLocaleTimeString('es-MX')}
+                        </span>
+                    </div>
+                    <div class="description" style="font-size: 11px;">
+                        ${alarm.tipo.toUpperCase()}: ${alarm.descripcion.substring(0, 50)}${alarm.descripcion.length > 50 ? '...' : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function loadSensoresFromDB() {
+            try {
+                console.log('Conectando a API:', `${API_URL}/sensores`);
+                const response = await fetch(`${API_URL}/sensores`);
+                
+                console.log('Respuesta recibida:', response.status);
+                const data = await response.json();
+                console.log('Datos:', data);
+                
+                if (data.success && data.sensores) {
+                    allSensoresFromDB = data.sensores;
+                    updateSensorSelect();
+                    document.getElementById('apiStatus').innerHTML = `✓ API: ${data.total} sensores`;
+                    document.getElementById('apiStatus').style.background = 'rgba(0,255,136,0.2)';
+                    console.log(`✓ ${data.total} sensores cargados desde PostgreSQL`);
+                } else {
+                    console.error('Error en respuesta:', data);
+                    document.getElementById('apiStatus').innerHTML = '✗ API: Sin datos';
+                    document.getElementById('apiStatus').style.background = 'rgba(255,68,102,0.2)';
+                }
+            } catch (error) {
+                console.error('Error conectando con API:', error);
+                document.getElementById('apiStatus').innerHTML = '✗ API: Desconectada';
+                document.getElementById('apiStatus').style.background = 'rgba(255,68,102,0.2)';
+            }
+        }
+        
+        function updateSensorSelect() {
+            const select = document.getElementById('sensorId');
+            
+            if (allSensoresFromDB.length === 0) {
+                select.innerHTML = '<option value="">No hay sensores disponibles</option>';
+                return;
+            }
+            
+            let html = '<option value="">Seleccionar sensor...</option>';
+            
+            // Agrupar por línea
+            const porLinea = {};
+            allSensoresFromDB.forEach(sensor => {
+                if (!porLinea[sensor.linea]) {
+                    porLinea[sensor.linea] = [];
+                }
+                porLinea[sensor.linea].push(sensor);
+            });
+            
+            // Crear optgroups por línea
+            Object.keys(porLinea).sort().forEach(linea => {
+                html += `<optgroup label="Línea ${linea}">`;
+                porLinea[linea].forEach(sensor => {
+                    html += `<option value="${sensor.sensor_id}">${sensor.sensor_id}</option>`;
+                });
+                html += `</optgroup>`;
+            });
+            
+            select.innerHTML = html;
+        }
+        
+        function openAlarmModal(preselectedSensorId = null) {
+            document.getElementById('alarmModal').classList.add('active');
+            
+            // Si se proporciona un sensor, preseleccionarlo
+            if (preselectedSensorId) {
+                document.getElementById('sensorId').value = preselectedSensorId;
+            }
+        }
+        
+        function sendQuickAlarm(sensorId) {
+            // Enviar alarma rápida desde el popup del sensor
+            const timestamp = new Date().toISOString();
+            const url = `${WEBHOOK_URL}?ID=${encodeURIComponent(sensorId)}&timestamp=${encodeURIComponent(timestamp)}`;
+            
+            console.log('Enviando alarma rápida:', url);
+            
+            try {
+                const img = new Image();
+                img.src = url;
+                
+                const alarmData = {
+                    id: sensorId,
+                    sensor_id: sensorId,
+                    tipo: 'alerta',
+                    descripcion: 'Alarma rápida desde sensor',
+                    timestamp: timestamp,
+                    url: url
+                };
+                
+                sentAlarms.push(alarmData);
+                updateSentAlarmsDisplay();
+                
+                showNotification(`✓ Alarma enviada para ${sensorId}`, 'success');
+                console.log('✓ Alarma rápida enviada:', alarmData);
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('✗ Error al enviar alarma', 'error');
+            }
+        }
+        
+        function closeAlarmModal() {
+            document.getElementById('alarmModal').classList.remove('active');
+            document.getElementById('alarmForm').reset();
+        }
+        
+        async function sendAlarm(event) {
+            event.preventDefault();
+            
+            const sensorId = document.getElementById('sensorId').value;
+            const timestamp = new Date().toISOString();
+            
+            // Deshabilitar botón
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Enviando...';
+            
+            try {
+                // Crear evento en PostgreSQL
+                const eventoResponse = await fetch(`${API_URL}/eventos/crear`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sensor_id: sensorId,
+                        timestamp: timestamp
+                    })
+                });
+                
+                const eventoData = await eventoResponse.json();
+                console.log('Evento creado en PostgreSQL:', eventoData);
+                
+                // También enviar al webhook
+                const url = `${WEBHOOK_URL}?ID=${encodeURIComponent(sensorId)}&timestamp=${encodeURIComponent(timestamp)}`;
+                console.log('Enviando alarma a webhook:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                
+                // Con no-cors no podemos leer la respuesta, pero si no hay error de red, asumimos éxito
+                const alarmData = {
+                    id: sensorId,
+                    sensor_id: sensorId,
+                    tipo: 'alarma',
+                    descripcion: 'Alarma desde formulario',
+                    timestamp: timestamp,
+                    url: url
+                };
+                
+                // Guardar en historial
+                sentAlarms.push(alarmData);
+                updateSentAlarmsDisplay();
+                
+                showNotification('✓ Alarma enviada exitosamente', 'success');
+                closeAlarmModal();
+                
+                console.log('✓ Alarma enviada:', alarmData);
+                console.log('URL completa:', url);
+                
+            } catch (error) {
+                console.error('Error enviando alarma:', error);
+                
+                // Intentar con una imagen como fallback (siempre funciona)
+                try {
+                    const url = `${WEBHOOK_URL}?ID=${encodeURIComponent(alarmId)}&timestamp=${encodeURIComponent(timestamp)}&tipo=${encodeURIComponent(alarmType)}&descripcion=${encodeURIComponent(description)}${sensorId ? '&sensor_id=' + encodeURIComponent(sensorId) : ''}`;
+                    const img = new Image();
+                    img.src = url;
+                    
+                    const alarmData = {
+                        id: alarmId,
+                        sensor_id: sensorId || null,
+                        tipo: alarmType,
+                        descripcion: description,
+                        timestamp: timestamp,
+                        url: url
+                    };
+                    
+                    sentAlarms.push(alarmData);
+                    updateSentAlarmsDisplay();
+                    
+                    showNotification('✓ Alarma enviada (método alternativo)', 'success');
+                    closeAlarmModal();
+                    
+                    console.log('✓ Alarma enviada con método alternativo:', alarmData);
+                } catch (fallbackError) {
+                    showNotification('✗ Error al enviar alarma. Verifica la consola.', 'error');
+                    console.error('Error completo:', error, fallbackError);
+                }
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Enviar Alarma';
+            }
+        }
+        
+        function showNotification(message, type = 'success') {
+            // Crear notificación
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 5px;">
+                    ${type === 'success' ? '✓ Éxito' : '✗ Error'}
+                </div>
+                <div style="font-size: 14px; opacity: 0.9;">
+                    ${message}
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Remover después de 4 segundos
+            setTimeout(() => {
+                notification.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+        
+        // Cerrar modal al hacer clic fuera
+        document.getElementById('alarmModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeAlarmModal();
+            }
+        });
+        
+        // Cerrar modal con tecla ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAlarmModal();
+            }
+        });
+    </script>
+    <script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.js"></script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC7NXQukGGQtFCZaSNz_KbYL5PD68825oo&callback=initMap">
+    </script>
+</body>
+</html>
